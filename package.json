@@ -1,6 +1,7 @@
 {
     "name": "discord-bot-manager",
     "version": "1.0.0",
+    "licence": "MIT",
     "description": "A Node.js project to manage multiple Discord bot instances.",
     "main": "index.js",
     "scripts": {

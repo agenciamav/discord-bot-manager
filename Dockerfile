@@ -6,6 +6,7 @@ WORKDIR /usr/src/app
 
 # Copie o arquivo package.json e package-lock.json para o diretório de trabalho
 COPY package*.json ./
+COPY yarn.lock ./
 
 # Instale as dependências do projeto usando o Yarn
 RUN yarn install

@@ -4,13 +4,16 @@ const bodyParser = require('body-parser');
 const BotManager = require('./botManager');
 const axios = require('axios');
 const https = require('https');
+const { Client, GatewayIntentBits } = require('discord.js');
 
 const { APP_URL } = process.env;
 
 // Create an express app
 const app = express();
 app.use(bodyParser.json());
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
+// Start the bot
 const port = process.env.PORT || 7860;
 const botManager = new BotManager();
 
@@ -44,25 +47,26 @@ app.post('/api/stop', (req, res) => {
 });
 
 // Fetch active bots and start them
-axios.get(`${APP_URL}/api/assistants/active`, {
+axios.get(`${APP_URL}/api/discord/bots`, {
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     },
-    httpsAgent: new https.Agent({  
-        rejectUnauthorized: false  
+    httpsAgent: new https.Agent({
+        rejectUnauthorized: false
     }),
     headers: {
         'Authorization': `Bearer ${process.env.API_TOKEN}`
     }
-})
-.then(response => {
+}).then(response => {
     const bots = response.data;
+    
+    // TODO: save bots and its details locally to share state between instances
+
     bots.forEach(bot => {
         botManager.startBot(bot.discord_bot_token);
     });
-})
-.catch(error => {
+}).catch(error => {
     console.error('Error fetching active bots:', error.message);
 });
 
@@ -70,4 +74,3 @@ axios.get(`${APP_URL}/api/assistants/active`, {
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
-

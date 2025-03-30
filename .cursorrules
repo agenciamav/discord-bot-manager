@@ -1,0 +1,37 @@
+# Discord Bot Manager
+
+## Informações importantes
+
+- **Plataforma**: Node.js
+- **Framework principal**: discord.js
+- **Versão Node.js**: 18+
+
+## Modificações realizadas
+
+- Removidas todas as funcionalidades e integrações com IA (Groq)
+- Removidas dependências não necessárias: groq-sdk, uuid
+- Simplificado o arquivo messageCreate.js para responder apenas a comandos básicos
+- Removido sistema de memória e ferramentas de IA
+- Atualizado o README.md para refletir as alterações
+- Mantida a funcionalidade principal de gerenciamento de bots
+
+## Estrutura do projeto
+
+- **index.js**: Ponto de entrada da aplicação, contém o servidor Express e rotas da API
+- **botManager.js**: Gerencia múltiplas instâncias de bots
+- **bot.js**: Representa uma instância de bot Discord
+- **events/**: Contém manipuladores de eventos do Discord
+- **commands/**: Contém comandos slash do Discord
+
+## Instruções para início
+
+1. Configurar as variáveis de ambiente no arquivo .env
+2. Instalar dependências com `yarn install` ou `npm install`
+3. Iniciar o servidor com `node index.js`
+
+## Convenções do código
+
+- Arquivos nomeados em camelCase
+- Variáveis e funções em camelCase
+- Espaçamento de 4 espaços para indentação
+- Código organizado por funcionalidade 

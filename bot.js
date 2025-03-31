@@ -69,7 +69,25 @@ class Bot {
     }
 
     start() {
-        this.client.login(this.token);
+        return new Promise((resolve, reject) => {
+            try {
+                this.client.login(this.token)
+                    .then(() => {
+                        console.log(`Bot iniciado com sucesso: ${this.client.user.tag}`);
+                        resolve();
+                    })
+                    .catch(error => {
+                        console.error(`Erro ao fazer login do bot: ${error.message}`);
+                        if (error.code === 'TokenInvalid') {
+                            console.error('Token inválido fornecido ao Discord API.');
+                        }
+                        reject(error);
+                    });
+            } catch (error) {
+                console.error(`Erro ao iniciar bot: ${error.message}`);
+                reject(error);
+            }
+        });
     }
 
     stop() {

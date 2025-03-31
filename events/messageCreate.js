@@ -1,17 +1,21 @@
 const { Events } = require('discord.js');
 
 module.exports = {
-    name: Events.MessageCreate,
-    async execute(message) {
-        // Ignorar mensagens do próprio bot
-        if (message.author.id === message.client.user.id) return;
-        
-        // Apenas registra mensagens que mencionam o bot
-        if (message.mentions.has(message.client.user)) {
-            console.log(`Bot mencionado por ${message.author.username} em ${message.guild?.name || 'DM'}: ${message.content}`);
-            
-            // Opcionalmente, responde com uma mensagem simples
-            await message.reply('Olá! Sou um bot gerenciado pelo Discord Bot Manager. Não possuo capacidades de IA.');
-        }
+  name: Events.MessageCreate,
+  async execute(message) {
+    // Ignora mensagens de bots (inclusive as do próprio bot)
+    if (message.author.bot) return;
+
+    console.log(`Mensagem recebida de ${message.author.username} em ${message.channel.name}: ${message.content}`);
+    
+    // Lógica básica para responder a comandos específicos (exemplo)
+    if (message.content.toLowerCase() === '!ping') {
+      await message.reply('Pong!');
     }
+    
+    // Se mencionou o bot, informar sobre funcionalidade limitada
+    if (message.mentions.has(message.client.user)) {
+      await message.reply('Este bot está configurado apenas para gerenciamento básico e não possui recursos de IA para responder a perguntas.');
+    }
+  },
 };

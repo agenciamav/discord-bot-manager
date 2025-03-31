@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+ # Discord Bot Manager - Regras e Padrões do Projeto
+
+## Estrutura das Pastas
+
+- `commands/`: Contém comandos slash organizados por categorias (subpastas)
+- `events/`: Contém manipuladores de eventos do Discord
+- Arquivos na raiz são componentes principais da aplicação
+
+## Padrões de Código
+
+- Utilize arrow functions ao declarar métodos
+- Utilize async/await para código assíncrono
+- Utilize template strings para concatenação de strings
+- Utilize const para variáveis que não são reatribuídas
+- Não utilize `var`, utilize `const` ou `let`
+
+## Manipulação de Eventos
+
+- Cada arquivo em `/events` deve exportar um objeto com as propriedades:
+  - `name`: Nome do evento (importado de Events do discord.js)
+  - `once`: (Opcional) Boolean indicando se deve ser executado apenas uma vez
+  - `execute`: Função para manipular o evento
+
+## Comandos Slash
+
+- Cada arquivo em `/commands` deve exportar um objeto com as propriedades:
+  - `data`: Instância de SlashCommandBuilder com configurações do comando
+  - `category`: String indicando a categoria do comando
+  - `execute`: Função assíncrona para executar o comando
+
+## Gestão de Erros
+
+- Sempre use try/catch para tratamento de erros
+- Faça log de erros no console
+- Utilize mensagens de erro claras e informativas
+
+## APIs
+
+- Os endpoints da API seguem o padrão REST
+- Todas as respostas da API são no formato JSON
+- Códigos de status HTTP são utilizados apropriadamente
+
+## Gerenciamento de Bots
+
+- A classe `Bot` representa uma instância do bot Discord
+- A classe `BotManager` gerencia múltiplas instâncias de bots
+- Tokens de bot são usados como identificadores únicos
+- Os métodos principais são `startBot` e `stopBot`

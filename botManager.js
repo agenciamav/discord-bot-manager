@@ -42,6 +42,7 @@ class BotManager {
             
             try {
                 await bot.start();
+                console.log('Bot iniciado com sucesso no BotManager');
                 return 'Bot started';
             } catch (error) {
                 // Se falhar ao iniciar, remover do mapa

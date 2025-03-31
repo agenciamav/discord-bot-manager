@@ -71,6 +71,29 @@ class Bot {
     start() {
         return new Promise((resolve, reject) => {
             try {
+                console.log(`Tentando iniciar bot com token de ${this.token.length} caracteres`);
+                
+                // Verificações básicas do token
+                if (!this.token || typeof this.token !== 'string') {
+                    console.error('Token inválido: não é uma string');
+                    reject(new Error('Invalid token: not a string'));
+                    return;
+                }
+                
+                if (this.token.trim() === '') {
+                    console.error('Token inválido: string vazia');
+                    reject(new Error('Invalid token: empty string'));
+                    return;
+                }
+                
+                // Verificar formato do token
+                const tokenParts = this.token.split('.');
+                if (tokenParts.length < 2) {
+                    console.error('Token inválido: formato incorreto (deve ter pelo menos 2 partes separadas por ponto)');
+                    reject(new Error('Invalid token format: expected at least 2 parts separated by dots'));
+                    return;
+                }
+
                 this.client.login(this.token)
                     .then(() => {
                         console.log(`Bot iniciado com sucesso: ${this.client.user.tag}`);
@@ -80,8 +103,13 @@ class Bot {
                         console.error(`Erro ao fazer login do bot: ${error.message}`);
                         if (error.code === 'TokenInvalid') {
                             console.error('Token inválido fornecido ao Discord API.');
+                            reject(new Error('Invalid token: Discord API rejected token'));
+                        } else if (error.code === 'DisallowedIntents') {
+                            console.error('Intents não permitidas para este bot.');
+                            reject(new Error('Disallowed intents: Bot requires privileged intents that are not enabled'));
+                        } else {
+                            reject(error);
                         }
-                        reject(error);
                     });
             } catch (error) {
                 console.error(`Erro ao iniciar bot: ${error.message}`);

@@ -1,37 +1,47 @@
-# Discord Bot Manager
+# Discord Bot Manager - Regras e Informações Importantes
 
-## Informações importantes
+## Ambiente de Produção (VPS)
 
-- **Plataforma**: Node.js
-- **Framework principal**: discord.js
-- **Versão Node.js**: 18+
+### Docker Swarm
+- O projeto roda em um ambiente Docker Swarm
+- Nome do serviço: `agenciamav_discord-bot-manager`
+- Comunicação interna via rede Docker Swarm
 
-## Modificações realizadas
+### Variáveis de Ambiente
+- `APP_URL`: Deve apontar para o serviço interno do Docker Swarm (`http://agenciamav-app`)
+  - NÃO incluir `/api` no APP_URL pois o código já adiciona este prefixo
+- `NODE_ENV`: Deve ser `production` em produção
+- `DEBUG`: Use `axios:*` para debug de requisições
+- `BOT_MANAGER_SECRET`: Chave secreta para autenticação
 
-- Removidas todas as funcionalidades e integrações com IA (Groq)
-- Removidas dependências não necessárias: groq-sdk, uuid
-- Simplificado o arquivo messageCreate.js para responder apenas a comandos básicos
-- Removido sistema de memória e ferramentas de IA
-- Atualizado o README.md para refletir as alterações
-- Mantida a funcionalidade principal de gerenciamento de bots
+### Lições Aprendidas
+1. A comunicação entre serviços deve usar os nomes internos do Docker Swarm
+2. Evitar duplicação de paths na URL da API (`/api`)
+3. O serviço da API usa nginx como reverse proxy
+4. Importante verificar logs do serviço após alterações
 
-## Estrutura do projeto
+### Comandos Úteis
+```bash
+# Visualizar logs do serviço
+docker service logs --since 30s agenciamav_discord-bot-manager
 
-- **index.js**: Ponto de entrada da aplicação, contém o servidor Express e rotas da API
-- **botManager.js**: Gerencia múltiplas instâncias de bots
-- **bot.js**: Representa uma instância de bot Discord
-- **events/**: Contém manipuladores de eventos do Discord
-- **commands/**: Contém comandos slash do Discord
+# Atualizar variáveis de ambiente
+docker service update --env-add KEY=VALUE agenciamav_discord-bot-manager
 
-## Instruções para início
+# Testar conectividade com API
+docker exec $(docker ps -q -f name=discord-bot-manager) curl -v http://agenciamav-app/api/discord/bots
+```
 
-1. Configurar as variáveis de ambiente no arquivo .env
-2. Instalar dependências com `yarn install` ou `npm install`
-3. Iniciar o servidor com `node index.js`
+## Estrutura do Projeto
+- `index.js`: Ponto de entrada da aplicação
+- `botManager.js`: Gerenciamento de instâncias de bots
+- `bot.js`: Classe base para bots Discord
+- `events/`: Handlers de eventos Discord
+- `commands/`: Comandos slash do Discord
 
-## Convenções do código
-
-- Arquivos nomeados em camelCase
-- Variáveis e funções em camelCase
-- Espaçamento de 4 espaços para indentação
-- Código organizado por funcionalidade 
+## Convenções de Código
+- Arquivos em camelCase
+- Indentação: 4 espaços
+- Código em inglês
+- Comentários em inglês
+- Organização por funcionalidade 

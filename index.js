@@ -115,85 +115,92 @@ axios.get('https://httpbin.org/get', { timeout: 5000 })
   .catch(err => console.error("❌ Falha ao testar conexão externa:", err.message));
 
 // Modifique a chamada da API para usar estas configurações
-console.log(`Tentando conexão com API (IPv4: ${process.env.API_IP || '103.199.186.117'})...`);
+if (process.env.APP_URL) {
+  console.log(`Tentando conexão com API via domínio: ${process.env.APP_URL}...`);
 
-// Tenta primeiro pelo IP direto
-const API_IP = process.env.API_IP || '103.199.186.117';
-axios.get(`http://${API_IP}/api/discord/bots`, axiosConfig)
-  .catch(error => {
-    console.log('Falha ao conectar via IP, tentando via domínio...');
-    // Se falhar, tenta pelo domínio
-    return axios.get(`${APP_URL}/api/discord/bots`, axiosConfig);
-  })
-  .then(async response => {
-    console.log(`Resposta recebida às ${new Date().toISOString()}`);
-    console.log(`Status: ${response.status}`);
-    const data = response.data;
-    
-    if (data.workspaces && Array.isArray(data.workspaces)) {
-        console.log(`\n=== Iniciando Bot Manager ===`);
-        console.log(`Encontrados ${data.workspaces.length} workspaces`);
-        
-        // Percorre todos os workspaces
-        for (const workspace of data.workspaces) {
-            console.log(`\n>> Workspace: ${workspace.workspace.name}`);
-            
-            // Percorre os bots de cada workspace
-            if (workspace.bots && Array.isArray(workspace.bots)) {
-                for (const bot of workspace.bots) {
-                    console.log(`\n> Bot: ${bot.name}`);
-                    
-                    // Debug: Mostrar informações do bot
-                    const tokenStatus = bot.token ? 'presente' : 'ausente';
-                    console.log(`Status: Token ${tokenStatus}`);
-                    
-                    if (bot.token && typeof bot.token === 'string') {
-                        // Validar formato do token
-                        const tokenParts = bot.token.split('.');
-                        const isValidFormat = bot.token.length >= 50 && 
-                                           tokenParts.length >= 2 && 
-                                           /^[A-Za-z0-9_.-]+$/.test(bot.token);
-                        
-                        if (isValidFormat) {
-                            console.log('Token válido, iniciando bot...');
-                            try {
-                                const result = await botManager.startBot(bot.token);
-                                console.log(`Resultado: ${result}`);
-                            } catch (error) {
-                                console.error(`Erro ao iniciar bot:`, error.message);
-                            }
-                        } else {
-                            console.error('Token inválido:', {
-                                length: bot.token.length,
-                                parts: tokenParts.length,
-                                format: /^[A-Za-z0-9_.-]+$/.test(bot.token)
-                            });
-                        }
-                    } else {
-                        console.log('Token ausente ou inválido');
-                    }
-                }
-            }
-        }
-        console.log('\n=== Inicialização concluída ===\n');
-    } else {
-        console.error('Formato de resposta da API inválido:', data);
-    }
-}).catch(error => {
-    console.error(`Erro ao buscar bots ativos às ${new Date().toISOString()}:`, error.message);
-    
-    // Adicionar mais informações sobre o erro
-    if (error.code) console.error('Código de erro:', error.code);
-    if (error.syscall) console.error('Syscall:', error.syscall);
-    if (error.address) console.error('Endereço:', error.address);
-    if (error.port) console.error('Porta:', error.port);
-    if (error.config && error.config.url) console.error('URL:', error.config.url);
-    
-    if (error.response) {
-        console.error('Resposta da API:', error.response.data);
-        console.error('Status:', error.response.status);
-    }
-});
+  axios.get(`${process.env.APP_URL}/api/discord/bots`, axiosConfig)
+    .catch(error => {
+      console.log('Falha ao conectar via domínio, tentando via IP...');
+      // Se falhar, tenta pelo IP
+      if (process.env.API_IP) {
+        return axios.get(`http://${process.env.API_IP}/api/discord/bots`, axiosConfig);
+      } else {
+        console.error('API_IP não está configurado, impossível tentar conexão via IP');
+        throw error;
+      }
+    })
+    .then(async response => {
+      console.log(`Resposta recebida às ${new Date().toISOString()}`);
+      console.log(`Status: ${response.status}`);
+      const data = response.data;
+      
+      if (data.workspaces && Array.isArray(data.workspaces)) {
+          console.log(`\n=== Iniciando Bot Manager ===`);
+          console.log(`Encontrados ${data.workspaces.length} workspaces`);
+          
+          // Percorre todos os workspaces
+          for (const workspace of data.workspaces) {
+              console.log(`\n>> Workspace: ${workspace.workspace.name}`);
+              
+              // Percorre os bots de cada workspace
+              if (workspace.bots && Array.isArray(workspace.bots)) {
+                  for (const bot of workspace.bots) {
+                      console.log(`\n> Bot: ${bot.name}`);
+                      
+                      // Debug: Mostrar informações do bot
+                      const tokenStatus = bot.token ? 'presente' : 'ausente';
+                      console.log(`Status: Token ${tokenStatus}`);
+                      
+                      if (bot.token && typeof bot.token === 'string') {
+                          // Validar formato do token
+                          const tokenParts = bot.token.split('.');
+                          const isValidFormat = bot.token.length >= 50 && 
+                                             tokenParts.length >= 2 && 
+                                             /^[A-Za-z0-9_.-]+$/.test(bot.token);
+                          
+                          if (isValidFormat) {
+                              console.log('Token válido, iniciando bot...');
+                              try {
+                                  const result = await botManager.startBot(bot.token);
+                                  console.log(`Resultado: ${result}`);
+                              } catch (error) {
+                                  console.error(`Erro ao iniciar bot:`, error.message);
+                              }
+                          } else {
+                              console.error('Token inválido:', {
+                                  length: bot.token.length,
+                                  parts: tokenParts.length,
+                                  format: /^[A-Za-z0-9_.-]+$/.test(bot.token)
+                              });
+                          }
+                      } else {
+                          console.log('Token ausente ou inválido');
+                      }
+                  }
+              }
+          }
+          console.log('\n=== Inicialização concluída ===\n');
+      } else {
+          console.error('Formato de resposta da API inválido:', data);
+      }
+  }).catch(error => {
+      console.error(`Erro ao buscar bots ativos às ${new Date().toISOString()}:`, error.message);
+      
+      // Adicionar mais informações sobre o erro
+      if (error.code) console.error('Código de erro:', error.code);
+      if (error.syscall) console.error('Syscall:', error.syscall);
+      if (error.address) console.error('Endereço:', error.address);
+      if (error.port) console.error('Porta:', error.port);
+      if (error.config && error.config.url) console.error('URL:', error.config.url);
+      
+      if (error.response) {
+          console.error('Resposta da API:', error.response.data);
+          console.error('Status:', error.response.status);
+      }
+  });
+} else {
+  console.error('APP_URL não está configurado, impossível tentar conexão via domínio');
+}
 
 // Start the server
 app.listen(port, () => {

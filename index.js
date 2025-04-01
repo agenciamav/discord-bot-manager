@@ -24,6 +24,27 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const port = process.env.PORT || 7860;
 const botManager = new BotManager();
 
+// Adicione estas configurações no topo do arquivo, após as importações
+const axiosConfig = {
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Bot-Manager-Secret': BOT_MANAGER_SECRET,
+    'User-Agent': 'axios/discord-bot-manager'
+  },
+  httpsAgent: new https.Agent({
+    rejectUnauthorized: false,
+    timeout: 10000,
+    keepAlive: true
+  }),
+  // Força IPv4
+  family: 4,
+  // Adiciona retry
+  retry: 3,
+  retryDelay: 1000
+};
+
 // API status
 app.get('/api', (req, res) => {
     res.json({ status: 'ok', message: 'Discord Bot Manager is running' });
@@ -93,25 +114,18 @@ axios.get('https://httpbin.org/get', { timeout: 5000 })
   .then(() => console.log("✅ Conexão externa OK"))
   .catch(err => console.error("❌ Falha ao testar conexão externa:", err.message));
 
-// Fetch active bots and start them
-console.log(`Iniciando requisição para: ${APP_URL}/api/discord/bots às ${new Date().toISOString()}`);
-console.log('Headers:', {
-  'X-Bot-Manager-Secret': BOT_MANAGER_SECRET ? 'Presente (oculto)' : 'Ausente',
-  'User-Agent': 'axios/discord-bot-manager'
-});
+// Modifique a chamada da API para usar estas configurações
+console.log(`Tentando conexão com API (IPv4: ${process.env.API_IP || '103.199.186.117'})...`);
 
-axios.get(`${APP_URL}/api/discord/bots`, {
-    headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Bot-Manager-Secret': BOT_MANAGER_SECRET,
-        'User-Agent': 'axios/discord-bot-manager'
-    },
-    httpsAgent: new https.Agent({
-        rejectUnauthorized: false
-    }),
-    timeout: 10000 // 10 segundos de timeout
-}).then(async response => {
+// Tenta primeiro pelo IP direto
+const API_IP = process.env.API_IP || '103.199.186.117';
+axios.get(`http://${API_IP}/api/discord/bots`, axiosConfig)
+  .catch(error => {
+    console.log('Falha ao conectar via IP, tentando via domínio...');
+    // Se falhar, tenta pelo domínio
+    return axios.get(`${APP_URL}/api/discord/bots`, axiosConfig);
+  })
+  .then(async response => {
     console.log(`Resposta recebida às ${new Date().toISOString()}`);
     console.log(`Status: ${response.status}`);
     const data = response.data;

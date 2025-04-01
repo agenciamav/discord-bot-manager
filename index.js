@@ -87,6 +87,12 @@ app.post('/api/validate-token', (req, res) => {
     });
 });
 
+// Adicione um teste para verificar conectividade geral
+console.log("Testando conectividade externa...");
+axios.get('https://httpbin.org/get', { timeout: 5000 })
+  .then(() => console.log("✅ Conexão externa OK"))
+  .catch(err => console.error("❌ Falha ao testar conexão externa:", err.message));
+
 // Fetch active bots and start them
 console.log(`Iniciando requisição para: ${APP_URL}/api/discord/bots às ${new Date().toISOString()}`);
 console.log('Headers:', {

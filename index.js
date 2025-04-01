@@ -88,7 +88,7 @@ app.post('/api/validate-token', (req, res) => {
 });
 
 // Fetch active bots and start them
-console.log(`Tentando conectar a: ${APP_URL}/api/discord/bots`);
+console.log(`Iniciando requisição para: ${APP_URL}/api/discord/bots às ${new Date().toISOString()}`);
 console.log('Headers:', {
   'X-Bot-Manager-Secret': BOT_MANAGER_SECRET ? 'Presente (oculto)' : 'Ausente',
   'User-Agent': 'axios/discord-bot-manager'
@@ -103,8 +103,11 @@ axios.get(`${APP_URL}/api/discord/bots`, {
     },
     httpsAgent: new https.Agent({
         rejectUnauthorized: false
-    })
+    }),
+    timeout: 10000 // 10 segundos de timeout
 }).then(async response => {
+    console.log(`Resposta recebida às ${new Date().toISOString()}`);
+    console.log(`Status: ${response.status}`);
     const data = response.data;
     
     if (data.workspaces && Array.isArray(data.workspaces)) {
@@ -157,9 +160,18 @@ axios.get(`${APP_URL}/api/discord/bots`, {
         console.error('Formato de resposta da API inválido:', data);
     }
 }).catch(error => {
-    console.error('Erro ao buscar bots ativos:', error.message);
+    console.error(`Erro ao buscar bots ativos às ${new Date().toISOString()}:`, error.message);
+    
+    // Adicionar mais informações sobre o erro
+    if (error.code) console.error('Código de erro:', error.code);
+    if (error.syscall) console.error('Syscall:', error.syscall);
+    if (error.address) console.error('Endereço:', error.address);
+    if (error.port) console.error('Porta:', error.port);
+    if (error.config && error.config.url) console.error('URL:', error.config.url);
+    
     if (error.response) {
         console.error('Resposta da API:', error.response.data);
+        console.error('Status:', error.response.status);
     }
 });
 

@@ -6,6 +6,16 @@
 - O projeto roda em um ambiente Docker Swarm
 - Nome do serviço: `agenciamav_discord-bot-manager`
 - Comunicação interna via rede Docker Swarm
+- Porta padrão: 3000
+
+### Comunicação entre Serviços
+- O Laravel (agenciamav_app) precisa se conectar ao Discord Bot Manager
+- Variáveis de ambiente necessárias no Laravel:
+  ```env
+  DISCORD_BOT_MANAGER_URL=http://agenciamav_discord-bot-manager:3000
+  DISCORD_BOT_MANAGER_SECRET=mav_discord_bot_manager_prod_secret_key
+  ```
+- Importante: Verificar se as portas estão expostas corretamente no Docker Swarm
 
 ### Variáveis de Ambiente
 - `APP_URL`: Deve apontar para o serviço interno do Docker Swarm (`http://agenciamav-app`)
@@ -19,6 +29,8 @@
 2. Evitar duplicação de paths na URL da API (`/api`)
 3. O serviço da API usa nginx como reverse proxy
 4. Importante verificar logs do serviço após alterações
+5. Garantir que as portas necessárias estejam expostas no Docker Swarm
+6. Usar o nome completo do serviço para comunicação interna (ex: agenciamav_discord-bot-manager:3000)
 
 ### Comandos Úteis
 ```bash
@@ -30,6 +42,9 @@ docker service update --env-add KEY=VALUE agenciamav_discord-bot-manager
 
 # Testar conectividade com API
 docker exec $(docker ps -q -f name=discord-bot-manager) curl -v http://agenciamav-app/api/discord/bots
+
+# Testar conectividade do Laravel com o Bot Manager
+docker exec $(docker ps -q -f name=agenciamav_app) curl -v http://agenciamav_discord-bot-manager:3000/api/discord/bots
 ```
 
 ## Estrutura do Projeto

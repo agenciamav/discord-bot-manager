@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: './.env' });
 const express = require('express');
 const bodyParser = require('body-parser');
 const BotManager = require('./botManager');
@@ -7,6 +7,13 @@ const https = require('https');
 const { Client, GatewayIntentBits } = require('discord.js');
 
 const { APP_URL, BOT_MANAGER_SECRET } = process.env;
+
+// Debug das variáveis de ambiente
+console.log('==== Variáveis de Ambiente ====');
+console.log('APP_URL:', APP_URL);
+console.log('BOT_MANAGER_SECRET:', BOT_MANAGER_SECRET ? 'Configurado (valor oculto)' : 'Não configurado');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('==============================');
 
 // Create an express app
 const app = express();
@@ -81,6 +88,12 @@ app.post('/api/validate-token', (req, res) => {
 });
 
 // Fetch active bots and start them
+console.log(`Tentando conectar a: ${APP_URL}/api/discord/bots`);
+console.log('Headers:', {
+  'X-Bot-Manager-Secret': BOT_MANAGER_SECRET ? 'Presente (oculto)' : 'Ausente',
+  'User-Agent': 'axios/discord-bot-manager'
+});
+
 axios.get(`${APP_URL}/api/discord/bots`, {
     headers: {
         'Content-Type': 'application/json',

@@ -1,15 +1,22 @@
 const Bot = require('./bot');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
 class BotManager {
   constructor() {
     this.bots = new Map();
   }
 
-  async startBot(token) {
+  async startBot(token, config = {}) {
     // Debug: Mostrar informações detalhadas do token
     console.log('\nDebug startBot:');
     console.log('Token recebido:', token);
     console.log('Tipo do token:', typeof token);
+    console.log('Config recebida:', JSON.stringify({
+      clientId: config.clientId ? 'presente' : 'ausente',
+      guildId: config.guildId ? 'presente' : 'ausente',
+      applicationId: config.applicationId ? 'presente' : 'ausente',
+    }));
+    
     if (typeof token === 'string') {
       console.log('Comprimento do token:', token.length);
       console.log('Token contém pontos:', token.includes('.'));
@@ -37,7 +44,18 @@ class BotManager {
     }
 
     try {
-      const bot = new Bot(token);
+      // Criar nova instância do bot
+      const client = new Client({
+        intents: [
+          GatewayIntentBits.Guilds,
+          GatewayIntentBits.GuildMessages,
+          GatewayIntentBits.GuildVoiceStates, // Necessário para áudio
+          GatewayIntentBits.MessageContent,   // Para ler conteúdo de mensagens
+        ],
+        partials: [Partials.Channel]
+      });
+
+      const bot = new Bot(token, config);
       this.bots.set(token, bot); // Registra o bot antes de iniciá-lo
             
       try {

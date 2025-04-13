@@ -1,10 +1,13 @@
 require('dotenv').config({ path: './.env' });
+// Carregar script de configuração para criar diretórios necessários
+require('./setup');
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const BotManager = require('./botManager');
 const axios = require('axios');
 const https = require('https');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
 const { APP_URL, BOT_MANAGER_SECRET } = process.env;
 
@@ -18,7 +21,15 @@ console.log('==============================');
 // Create an express app
 const app = express();
 app.use(bodyParser.json());
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const client = new Client({ 
+  intents: [
+    GatewayIntentBits.Guilds, 
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates, // Necessário para detectar eventos de voz
+    GatewayIntentBits.MessageContent,   // Para ler conteúdo de mensagens
+  ],
+  partials: [Partials.Channel]
+});
 
 // Start the bot
 const port = process.env.PORT || 7860;
@@ -54,6 +65,44 @@ app.get('/api', (req, res) => {
 app.get('/api/status', (req, res) => {
   const status = botManager.getBotsStatus();
   res.json(status);
+});
+
+// Deploy commands endpoint
+app.post('/api/deploy-commands', async (req, res) => {
+  const { token, clientId, guildId, guildIds } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({ error: 'Token is required' });
+  }
+  
+  if (!clientId) {
+    return res.status(400).json({ error: 'Client ID is required' });
+  }
+  
+  if (!guildId && (!guildIds || !guildIds.length)) {
+    return res.status(400).json({ error: 'At least one Guild ID is required' });
+  }
+  
+  try {
+    const deployCommandsForBot = require('./deploy-commands').deployCommandsForBot;
+    
+    const result = await deployCommandsForBot({
+      token,
+      clientId,
+      guildId,
+      guildIds,
+      name: req.body.name || 'Bot'
+    });
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error deploying commands:', error);
+    return res.status(500).json({
+      success: false,
+      message: `Error deploying commands: ${error.message}`,
+      error: error.message
+    });
+  }
 });
 
 // Rota para listar bots ativos
@@ -177,7 +226,23 @@ if (process.env.APP_URL) {
                 if (isValidFormat) {
                   console.log('Token válido, iniciando bot...');
                   try {
-                    const result = await botManager.startBot(bot.token);
+                    // Preparar configuração
+                    const botConfig = {
+                      clientId: bot.client_id,
+                      guildId: bot.guild_id,
+                      applicationId: bot.application_id,
+                      botId: bot.id,
+                      name: bot.name
+                    };
+                    
+                    console.log('Configuração do bot:', {
+                      name: botConfig.name,
+                      clientId: botConfig.clientId ? 'presente' : 'ausente',
+                      guildId: botConfig.guildId ? 'presente' : 'ausente',
+                      applicationId: botConfig.applicationId ? 'presente' : 'ausente'
+                    });
+                    
+                    const result = await botManager.startBot(bot.token, botConfig);
                     console.log(`Resultado: ${result}`);
                   } catch (error) {
                     console.error('Erro ao iniciar bot:', error.message);
@@ -217,6 +282,21 @@ if (process.env.APP_URL) {
 } else {
   console.error('APP_URL não está configurado, impossível tentar conexão via domínio');
 }
+
+// Registrar handlers para áudio
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  // Verificar se o bot está sendo movido por alguém
+  if (newState.member.id === client.user.id) {
+    // Se o bot foi desconectado
+    if (oldState.channel && !newState.channel) {
+      console.log(`🔌 Bot foi desconectado do canal ${oldState.channel.name}`);
+      const audioManager = require('./audio/audioManager');
+      audioManager.disconnect(oldState.channel.id);
+    }
+  }
+});
+
+// Certificar-se de incluir o comando de voz nos comandos registrados
 
 // Start the server
 app.listen(port, () => {

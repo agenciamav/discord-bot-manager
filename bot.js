@@ -4,9 +4,10 @@ const axios = require('axios');
 const fs = require('node:fs');
 const path = require('node:path');
 const { TOKEN, CLIENT_ID, GUILD_ID, APP_URL } = process.env;
+const recordingManager = require('./audio/recordingManager');
 
 class Bot {    
-  constructor(token) {
+  constructor(token, config = {}) {
     this.client = new Client({
       intents: [                
         GatewayIntentBits.Guilds,
@@ -32,26 +33,18 @@ class Bot {
     });
     this.client.cooldowns = new Collection();
     this.client.commands = new Collection();
+    this.client.voiceConnections = new Collection();
 
     this.token = token ?? TOKEN;
+    
+    // Salvar configurações adicionais
+    this.clientId = config.clientId ?? CLIENT_ID;
+    this.guildId = config.guildId ?? GUILD_ID;
+    this.applicationId = config.applicationId;
+    this.botConfig = config;
 
     // Load commands
-    const commandsPath = path.join(__dirname, 'commands');
-    const commandFolders = fs.readdirSync(commandsPath);
-
-    for (const folder of commandFolders) {
-      const folderPath = path.join(commandsPath, folder);
-      const commandFiles = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
-      for (const file of commandFiles) {
-        const commandPath = path.join(folderPath, file);
-        const command = require(commandPath);
-        if ('data' in command && 'execute' in command) {
-          this.client.commands.set(command.data.name, command);
-        } else {
-          console.log(`[WARNING] The command at ${commandPath} is missing a required "data" or "execute" property.`);
-        }
-      }
-    }
+    loadCommands(this.client);
 
     // Load events
     const eventsPath = path.join(__dirname, 'events');
@@ -66,6 +59,45 @@ class Bot {
         this.client.on(event.name, (...args) => event.execute(...args));
       }
     }   
+
+    // Em algum lugar após o client ser criado (ex: no evento 'ready' ou na inicialização)
+    this.client.on('voiceStateUpdate', (oldState, newState) => {
+        const guildId = newState.guild.id; // ou oldState.guild.id
+
+        // Verificar se há uma gravação ativa neste servidor
+        if (!recordingManager.isRecording(guildId)) return;
+
+        const recordingInfo = recordingManager.getActiveRecording(guildId);
+        const userId = newState.id; // ID do usuário que mudou o estado
+        const member = newState.member; // ou oldState.member
+
+        if (!member || member.user.bot) return; // Ignorar bots
+
+        const oldChannelId = oldState.channelId;
+        const newChannelId = newState.channelId;
+        const recordingChannelId = recordingInfo.channelId;
+
+        // Usuário entrou no canal gravado?
+        if (!oldChannelId && newChannelId === recordingChannelId) {
+            console.log(`[VoiceStateUpdate] Usuário ${userId} entrou no canal gravado ${recordingChannelId}`);
+            recordingManager.startRecordingUser(guildId, recordingChannelId, userId, recordingInfo.connection.receiver);
+        }
+        // Usuário saiu do canal gravado?
+        else if (oldChannelId === recordingChannelId && !newChannelId) {
+            console.log(`[VoiceStateUpdate] Usuário ${userId} saiu do canal gravado ${recordingChannelId}`);
+            recordingManager.stopRecordingUser(guildId, userId);
+        }
+        // Usuário mudou de canal (saindo do canal gravado)?
+        else if (oldChannelId === recordingChannelId && newChannelId && newChannelId !== recordingChannelId) {
+             console.log(`[VoiceStateUpdate] Usuário ${userId} mudou do canal gravado ${recordingChannelId} para ${newChannelId}`);
+             recordingManager.stopRecordingUser(guildId, userId);
+        }
+         // Usuário mudou para o canal gravado?
+         else if (oldChannelId && oldChannelId !== recordingChannelId && newChannelId === recordingChannelId) {
+              console.log(`[VoiceStateUpdate] Usuário ${userId} mudou de ${oldChannelId} para o canal gravado ${recordingChannelId}`);
+              recordingManager.startRecordingUser(guildId, recordingChannelId, userId, recordingInfo.connection.receiver);
+         }
+    });
   }
 
   start() {
@@ -124,6 +156,56 @@ class Bot {
 
   getStatus() {
     return this.client.isReady() ? 'online' : 'offline';
+  }
+}
+
+function loadCommands(client) {
+  const commandsPath = path.join(__dirname, 'commands');
+  
+  // Verificar se o diretório existe
+  if (!fs.existsSync(commandsPath)) {
+    console.log(`[ERROR] Diretório de comandos não encontrado: ${commandsPath}`);
+    return;
+  }
+
+  // Obter todos os arquivos do diretório de comandos
+  const files = fs.readdirSync(commandsPath);
+
+  for (const file of files) {
+    const filePath = path.join(commandsPath, file);
+    const stats = fs.statSync(filePath);
+
+    if (stats.isFile() && file.endsWith('.js')) {
+      // Se for um arquivo JavaScript, carregá-lo como comando
+      try {
+        const command = require(filePath);
+        if ('data' in command && 'execute' in command) {
+          client.commands.set(command.data.name, command);
+          console.log(`🔧 Comando carregado: ${command.data.name}`);
+        } else {
+          console.log(`[WARNING] O comando em ${filePath} está sem as propriedades "data" ou "execute".`);
+        }
+      } catch (error) {
+        console.error(`[ERROR] Erro ao carregar o comando ${filePath}:`, error);
+      }
+    } else if (stats.isDirectory()) {
+      // Se for um diretório, carregar os comandos dentro dele
+      const subCommandFiles = fs.readdirSync(filePath).filter(file => file.endsWith('.js'));
+      for (const subFile of subCommandFiles) {
+        const subFilePath = path.join(filePath, subFile);
+        try {
+          const command = require(subFilePath);
+          if ('data' in command && 'execute' in command) {
+            client.commands.set(command.data.name, command);
+            console.log(`🔧 Comando carregado: ${command.data.name} (${file}/${subFile})`);
+          } else {
+            console.log(`[WARNING] O comando em ${subFilePath} está sem as propriedades "data" ou "execute".`);
+          }
+        } catch (error) {
+          console.error(`[ERROR] Erro ao carregar o comando ${subFilePath}:`, error);
+        }
+      }
+    }
   }
 }
 

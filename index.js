@@ -84,7 +84,7 @@ app.post('/api/deploy-commands', async (req, res) => {
   }
   
   try {
-    const deployCommandsForBot = require('./deploy-commands').deployCommandsForBot;
+    const { deployCommandsForBot } = require('./deploy-commands');
     
     const result = await deployCommandsForBot({
       token,
@@ -100,6 +100,94 @@ app.post('/api/deploy-commands', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: `Error deploying commands: ${error.message}`,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para desregistrar todos os comandos
+app.post('/api/unregister-commands', async (req, res) => {
+  const { token, clientId, guildId, guildIds } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({ error: 'Token is required' });
+  }
+  
+  if (!clientId) {
+    return res.status(400).json({ error: 'Client ID is required' });
+  }
+  
+  if (!guildId && (!guildIds || !guildIds.length)) {
+    return res.status(400).json({ error: 'At least one Guild ID is required' });
+  }
+  
+  try {
+    const { REST, Routes } = require('discord.js');
+    const rest = new REST().setToken(token);
+    
+    const targetGuilds = guildIds?.length ? guildIds : [guildId];
+    const results = [];
+    
+    for (const guild of targetGuilds) {
+      try {
+        // Buscar todos os comandos registrados
+        const registeredCommands = await rest.get(
+          Routes.applicationGuildCommands(clientId, guild)
+        );
+        
+        if (registeredCommands.length === 0) {
+          results.push({
+            guildId: guild,
+            success: true,
+            message: 'Não há comandos para desregistrar',
+            commandsRemoved: 0
+          });
+          continue;
+        }
+        
+        // Remover comandos um por um
+        let removedCount = 0;
+        const errors = [];
+        
+        for (const cmd of registeredCommands) {
+          try {
+            await rest.delete(
+              Routes.applicationGuildCommand(clientId, guild, cmd.id)
+            );
+            removedCount++;
+          } catch (error) {
+            errors.push({
+              command: cmd.name,
+              error: error.message
+            });
+          }
+        }
+        
+        results.push({
+          guildId: guild,
+          success: true,
+          message: `${removedCount} comandos desregistrados com sucesso`,
+          commandsRemoved: removedCount,
+          errors: errors.length > 0 ? errors : undefined
+        });
+      } catch (error) {
+        results.push({
+          guildId: guild,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    return res.json({
+      success: results.some(r => r.success),
+      results
+    });
+  } catch (error) {
+    console.error('Error unregistering commands:', error);
+    return res.status(500).json({
+      success: false,
+      message: `Error unregistering commands: ${error.message}`,
       error: error.message
     });
   }
@@ -199,65 +287,58 @@ if (process.env.APP_URL) {
       console.log(`Status: ${response.status}`);
       const data = response.data;
       
-      if (data.workspaces && Array.isArray(data.workspaces)) {
+      if (data.data && Array.isArray(data.data)) {
         console.log('\n=== Iniciando Bot Manager ===');
-        console.log(`Encontrados ${data.workspaces.length} workspaces`);
+        console.log(`Encontrados ${data.data.length} bots`);
           
-        // Percorre todos os workspaces
-        for (const workspace of data.workspaces) {
-          console.log(`\n>> Workspace: ${workspace.workspace.name}`);
-              
-          // Percorre os bots de cada workspace
-          if (workspace.bots && Array.isArray(workspace.bots)) {
-            for (const bot of workspace.bots) {
-              console.log(`\n> Bot: ${bot.name}`);
+        // Percorre todos os bots
+        for (const bot of data.data) {
+          console.log(`\n> Bot: ${bot.name}`);
+                  
+          // Debug: Mostrar informações do bot
+          const tokenStatus = bot.decrypted_token ? 'presente' : 'ausente';
+          console.log(`Status: Token ${tokenStatus}`);
+                  
+          if (bot.decrypted_token && typeof bot.decrypted_token === 'string') {
+            // Validar formato do token
+            const tokenParts = bot.decrypted_token.split('.');
+            const isValidFormat = bot.decrypted_token.length >= 50 && 
+                                 tokenParts.length >= 2 && 
+                                 /^[A-Za-z0-9_.-]+$/.test(bot.decrypted_token);
                       
-              // Debug: Mostrar informações do bot
-              const tokenStatus = bot.token ? 'presente' : 'ausente';
-              console.log(`Status: Token ${tokenStatus}`);
-                      
-              if (bot.token && typeof bot.token === 'string') {
-                // Validar formato do token
-                const tokenParts = bot.token.split('.');
-                const isValidFormat = bot.token.length >= 50 && 
-                                             tokenParts.length >= 2 && 
-                                             /^[A-Za-z0-9_.-]+$/.test(bot.token);
-                          
-                if (isValidFormat) {
-                  console.log('Token válido, iniciando bot...');
-                  try {
-                    // Preparar configuração
-                    const botConfig = {
-                      clientId: bot.client_id,
-                      guildId: bot.guild_id,
-                      applicationId: bot.application_id,
-                      botId: bot.id,
-                      name: bot.name
-                    };
-                    
-                    console.log('Configuração do bot:', {
-                      name: botConfig.name,
-                      clientId: botConfig.clientId ? 'presente' : 'ausente',
-                      guildId: botConfig.guildId ? 'presente' : 'ausente',
-                      applicationId: botConfig.applicationId ? 'presente' : 'ausente'
-                    });
-                    
-                    const result = await botManager.startBot(bot.token, botConfig);
-                    console.log(`Resultado: ${result}`);
-                  } catch (error) {
-                    console.error('Erro ao iniciar bot:', error.message);
-                  }
-                } else {
-                  console.error('Token inválido:', {
-                    length: bot.token.length,
-                    parts: tokenParts.length,
-                    format: /^[A-Za-z0-9_.-]+$/.test(bot.token),
-                  });
-                }
-              } else {
-                console.log('Token ausente ou inválido');
+            if (isValidFormat) {
+              console.log('Token válido, iniciando bot...');
+              try {
+                // Preparar configuração
+                const botConfig = {
+                  clientId: bot.client_id,
+                  guildId: bot.guild_id,
+                  applicationId: bot.application_id,
+                  botId: bot.id,
+                  name: bot.name
+                };
+                
+                console.log('Configuração do bot:', {
+                  name: botConfig.name,
+                  clientId: botConfig.clientId ? 'presente' : 'ausente',
+                  guildId: botConfig.guildId ? 'presente' : 'ausente',
+                  applicationId: botConfig.applicationId ? 'presente' : 'ausente'
+                });
+                
+                const result = await botManager.startBot(bot.decrypted_token, botConfig);
+                console.log(`Resultado: ${result}`);
+              } catch (error) {
+                console.error('Erro ao iniciar bot:', error.message);
               }
+            } else {
+              console.error('Token inválido:', {
+                length: bot.decrypted_token.length,
+                parts: tokenParts.length,
+                format: /^[A-Za-z0-9_.-]+$/.test(bot.decrypted_token),
+              });
             }
+          } else {
+            console.log('Token ausente ou inválido');
           }
         }
         console.log('\n=== Inicialização concluída ===\n');
@@ -296,7 +377,129 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 });
 
-// Certificar-se de incluir o comando de voz nos comandos registrados
+// Ajuste na função registerCommandsOnReady para utilizar a função do deploy-commands.js
+async function registerCommandsOnReady(client) {
+  try {
+    console.log('\n===== REGISTRO AUTOMÁTICO DE COMANDOS =====');
+    console.log(`🤖 Bot conectado como ${client.user.tag}`);
+    console.log(`🆔 Bot ID: ${client.user.id}`);
+    
+    // Obter todas as guilds do cliente
+    const guilds = client.guilds.cache;
+    console.log(`📊 O bot está em ${guilds.size} servidores.`);
+    
+    if (guilds.size === 0) {
+      console.log('⚠️ O bot não está em nenhum servidor, não há comandos para registrar.');
+      return;
+    }
+    
+    // Importar a função deployCommandsForBot do arquivo deploy-commands.js
+    const { deployCommandsForBot } = require('./deploy-commands');
+    
+    // Para cada guild, registrar os comandos
+    let successCount = 0;
+    let failCount = 0;
+    const results = [];
+    
+    console.log(`\n🔄 Iniciando registro em ${guilds.size} servidores...`);
+    
+    for (const [guildId, guild] of guilds) {
+      try {
+        console.log(`\n📝 Processando servidor: ${guild.name} (${guildId})`);
+        console.log(`📈 Membros: ${guild.memberCount}`);
+        
+        // Configurar parâmetros para o deploy de comandos
+        const result = await deployCommandsForBot({
+          token: client.token,
+          clientId: client.user.id,
+          guildId: guildId,
+          name: guild.name
+        });
+        
+        if (result.success) {
+          successCount++;
+          console.log(`✅ Comandos registrados com sucesso na guild: ${guild.name}`);
+          
+          // Mais detalhes sobre comandos registrados
+          if (result.results && result.results.length > 0) {
+            const guildResult = result.results[0];
+            console.log(`📋 Total de ${guildResult.commandsRegistered} comandos registrados`);
+          }
+        } else {
+          failCount++;
+          console.error(`❌ Falha ao registrar comandos na guild: ${guild.name}`);
+          console.error(result.error || JSON.stringify(result, null, 2));
+        }
+        
+        results.push({
+          guildId,
+          guildName: guild.name,
+          success: result.success,
+          commandsRegistered: result.results?.[0]?.commandsRegistered || 0,
+          error: result.error || result.results?.[0]?.error
+        });
+        
+        // Notificar a API sobre este servidor (opcional)
+        try {
+          // Evitar flood de requisições para a API
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          await axios.post(`${process.env.APP_URL}/api/discord/guilds/joined`, {
+            bot_id: client.user.id,
+            guild_id: guildId,
+            guild_name: guild.name,
+            members_count: guild.memberCount,
+            owner_id: guild.ownerId
+          }, {
+            headers: {
+              'X-Bot-Manager-Secret': process.env.BOT_MANAGER_SECRET
+            }
+          });
+          
+          console.log(`📡 API notificada sobre o servidor: ${guild.name}`);
+        } catch (apiError) {
+          // Apenas log, não interromper o processo
+          console.log(`⚠️ Aviso: Não foi possível notificar a API sobre o servidor ${guild.name}`);
+        }
+      } catch (error) {
+        failCount++;
+        console.error(`❌ Erro ao registrar comandos na guild ${guild.name}:`, error.message);
+        results.push({
+          guildId,
+          guildName: guild.name,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    // Resumo final
+    console.log('\n===== RESUMO DO REGISTRO DE COMANDOS =====');
+    console.log(`✅ Sucesso: ${successCount}/${guilds.size} servidores`);
+    console.log(`❌ Falha: ${failCount}/${guilds.size} servidores`);
+    
+    if (failCount > 0) {
+      console.log('\n⚠️ Servidores com falha:');
+      results.filter(r => !r.success).forEach(result => {
+        console.log(`- ${result.guildName} (${result.guildId}): ${result.error || 'Erro desconhecido'}`);
+      });
+    }
+    
+    console.log('\n✅ Registro de comandos concluído para todos os servidores.');
+  } catch (error) {
+    console.error('❌ Erro durante o registro de comandos:', error);
+  }
+}
+
+// Adicionar ao evento 'ready' do bot
+client.once('ready', () => {
+  console.log(`Ready! Logged in as ${client.user.tag}`);
+  
+  // Registrar comandos automaticamente em todas as guilds
+  registerCommandsOnReady(client).catch(error => {
+    console.error('Erro ao registrar comandos automaticamente:', error);
+  });
+});
 
 // Start the server
 app.listen(port, () => {

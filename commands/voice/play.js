@@ -1,20 +1,25 @@
-const { SlashCommandBuilder } = require('discord.js');
 const { createAudioPlayer, createAudioResource, joinVoiceChannel, getVoiceConnection, AudioPlayerStatus } = require('@discordjs/voice');
 const { join } = require('path');
+const fs = require('fs');
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('play')
-    .setDescription('Reproduz um arquivo de áudio')
-    .addStringOption(option =>
-      option.setName('audio')
-        .setDescription('Arquivo de áudio para reproduzir (exemplo: welcome, alert)')
-        .setRequired(true)
-        .addChoices(
+  data: {
+    name: 'play',
+    description: 'Reproduz um arquivo de áudio',
+    options: [
+      {
+        type: 3,
+        name: 'audio',
+        description: 'Arquivo de áudio para reproduzir (exemplo: welcome, alert)',
+        required: true,
+        choices: [
           { name: 'Boas Vindas', value: 'welcome' },
           { name: 'Alerta', value: 'alert' },
           { name: 'Despedida', value: 'goodbye' }
-        )),
+        ]
+      }
+    ]
+  },
   
   async execute(interaction) {
     // Verificar se o usuário está em um canal de voz
@@ -31,6 +36,14 @@ module.exports = {
     // Obter o áudio escolhido
     const audioChoice = interaction.options.getString('audio');
     const audioPath = join(__dirname, '..', '..', 'audio', `${audioChoice}.mp3`);
+    
+    // Verificar se o arquivo existe
+    if (!fs.existsSync(audioPath)) {
+      return interaction.reply({
+        content: `❌ Arquivo de áudio '${audioChoice}.mp3' não encontrado.`,
+        ephemeral: true
+      });
+    }
     
     try {
       // Verificar a conexão existente ou criar uma nova
@@ -54,7 +67,7 @@ module.exports = {
       player.play(resource);
       
       // Responder à interação
-      await interaction.reply(`Reproduzindo áudio: **${audioChoice}**`);
+      await interaction.reply(`🎵 Reproduzindo áudio: **${audioChoice}**`);
       
       // Configurar tratamento para o fim da reprodução
       player.on(AudioPlayerStatus.Idle, () => {
@@ -67,7 +80,7 @@ module.exports = {
     } catch (error) {
       console.error(`Erro ao reproduzir áudio: ${error}`);
       await interaction.reply({ 
-        content: 'Ocorreu um erro ao tentar reproduzir o áudio.', 
+        content: `❌ Ocorreu um erro ao tentar reproduzir o áudio: ${error.message}`, 
         ephemeral: true 
       });
     }

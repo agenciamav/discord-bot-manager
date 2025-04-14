@@ -1,4 +1,3 @@
-const { SlashCommandBuilder } = require('discord.js');
 const { 
   joinVoiceChannel, 
   getVoiceConnection, 
@@ -18,13 +17,18 @@ const axios = require('axios');
 // para a integração com serviços de STT (Speech-to-Text) e TTS (Text-to-Speech)
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('listen')
-    .setDescription('Escuta você e responde com IA')
-    .addIntegerOption(option =>
-      option.setName('duration')
-        .setDescription('Duração da escuta em segundos (default: 10)')
-        .setRequired(false)),
+  data: {
+    name: 'listen',
+    description: 'Escuta você e responde com IA',
+    options: [
+      {
+        type: 4,
+        name: 'duration',
+        description: 'Duração da escuta em segundos (default: 10)',
+        required: false
+      }
+    ]
+  },
   
   async execute(interaction) {
     // Verificar se o usuário está em um canal de voz

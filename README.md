@@ -129,6 +129,32 @@ docker run -p 7860:7860 --env-file .env discord-bot-manager
 
 ## Solução de Problemas
 
+### Problemas com Comandos Discord
+
+Se os comandos slash não estão aparecendo no Discord ou estão duplicados:
+
+1. Verifique se o bot tem a permissão `applications.commands` no seu servidor
+2. Execute o script de reset de comandos para desregistrar e registrar novamente todos os comandos:
+
+```bash
+node reset-commands.js
+```
+
+Este script irá:
+- Remover todos os comandos registrados no servidor (especificado no GUILD_ID)
+- Carregar todos os comandos disponíveis nas pastas do projeto
+- Registrar novamente os comandos no Discord
+
+### Estrutura de Comandos
+
+Os comandos são organizados em pastas por categoria:
+
+- `commands/utility/`: Comandos utilitários gerais
+- `commands/voice/`: Comandos relacionados a recursos de voz
+  - Cada pasta pode conter um arquivo `index.js` para agrupar subcomandos
+
+Para adicionar novos comandos, crie arquivos .js dentro da pasta apropriada e execute o script de deploy de comandos.
+
 Para problemas comuns e suas soluções, consulte nossa [documentação de solução de problemas](./README-VOICE.md#resolução-de-problemas).
 
 ## Contribuição

@@ -25,50 +25,142 @@ const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 console.log('Buscando comandos em:', commandsPath);
 
-if (fs.existsSync(commandsPath)) {
-  const files = fs.readdirSync(commandsPath);
-  console.log('Arquivos/pastas encontrados:', files);
-
-  for (const file of files) {
-    const filePath = path.join(commandsPath, file);
-    const stats = fs.statSync(filePath);
-    console.log(`Analisando ${file}:`, stats.isFile() ? 'arquivo' : 'diretório');
-
-    if (stats.isFile() && file.endsWith('.js')) {
+// Função para desregistrar todos os comandos
+async function deleteAllCommands(rest, clientId, guildId) {
+  console.log(`🗑️ Iniciando processo para desregistrar todos os comandos...`);
+  console.log(`   Client ID: ${clientId}`);
+  console.log(`   Guild ID: ${guildId}`);
+  
+  try {
+    // Primeiro, buscar todos os comandos registrados
+    const registeredCommands = await rest.get(
+      Routes.applicationGuildCommands(clientId, guildId)
+    );
+    
+    console.log(`📋 Encontrados ${registeredCommands.length} comandos registrados`);
+    
+    if (registeredCommands.length === 0) {
+      console.log('✅ Não há comandos para desregistrar');
+      return;
+    }
+    
+    // Listar os comandos encontrados
+    console.log('📋 Comandos registrados:');
+    registeredCommands.forEach(cmd => {
+      console.log(`   - ${cmd.name} (ID: ${cmd.id})`);
+    });
+    
+    console.log('🗑️ Desregistrando todos os comandos...');
+    
+    // Remover comandos um por um
+    for (const cmd of registeredCommands) {
       try {
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-          commands.push(command.data.toJSON());
-          console.log(`✅ Comando carregado: ${file} (${command.data.name})`);
-        } else {
-          console.log(`⚠️ [WARNING] O comando em ${filePath} está sem as propriedades "data" ou "execute".`);
-        }
+        await rest.delete(
+          Routes.applicationGuildCommand(clientId, guildId, cmd.id)
+        );
+        console.log(`✅ Comando removido: ${cmd.name}`);
       } catch (error) {
-        console.error(`❌ Erro ao carregar comando ${filePath}:`, error);
-      }
-    } else if (stats.isDirectory()) {
-      console.log(`📁 Abrindo diretório: ${file}`);
-      const subCommandFiles = fs.readdirSync(filePath).filter(file => file.endsWith('.js'));
-      console.log(`   Arquivos encontrados: ${subCommandFiles.join(', ')}`);
-      
-      for (const subFile of subCommandFiles) {
-        const subFilePath = path.join(filePath, subFile);
-        try {
-          const command = require(subFilePath);
-          if ('data' in command && 'execute' in command) {
-            commands.push(command.data.toJSON());
-            console.log(`✅ Comando carregado: ${file}/${subFile} (${command.data.name})`);
-          } else {
-            console.log(`⚠️ [WARNING] O comando em ${subFilePath} está sem as propriedades "data" ou "execute".`);
-          }
-        } catch (error) {
-          console.error(`❌ Erro ao carregar comando ${subFilePath}:`, error);
-        }
+        console.error(`❌ Erro ao remover comando ${cmd.name}:`, error.message);
       }
     }
+    
+    console.log('✅ Processo de desregistro concluído');
+  } catch (error) {
+    console.error('❌ Erro ao desregistrar comandos:', error.message);
+    throw error;
   }
+}
+
+// Função para carregar comandos recursivamente
+function loadCommands(dir) {
+  if (!fs.existsSync(dir)) {
+    console.error(`❌ [ERROR] Diretório não encontrado: ${dir}`);
+    return;
+  }
+
+  const items = fs.readdirSync(dir);
+  console.log(`📂 Verificando itens em ${dir}:`, items);
+
+  // Primeiro verificar arquivos .js para dar prioridade aos comandos de nível superior
+  const jsFiles = items.filter(item => fs.statSync(path.join(dir, item)).isFile() && item.endsWith('.js'));
+  const dirs = items.filter(item => fs.statSync(path.join(dir, item)).isDirectory());
+  
+  // Conjunto para controlar nomes de comandos já registrados
+  const registeredCommandNames = new Set();
+
+  // Processar primeiro os arquivos .js
+  for (const item of jsFiles) {
+    const itemPath = path.join(dir, item);
+    
+    try {
+      const command = require(itemPath);
+      if ('data' in command && 'execute' in command) {
+        // Verificar se o comando já foi registrado
+        const commandName = typeof command.data.name === 'function' 
+          ? command.data.name 
+          : command.data.name || (command.data.toJSON ? command.data.toJSON().name : null);
+        
+        if (!commandName) {
+          console.log(`⚠️ [WARNING] Comando em ${itemPath} não possui nome válido.`);
+          continue;
+        }
+        
+        if (!registeredCommandNames.has(commandName)) {
+          // Verificar se é um SlashCommandBuilder ou um objeto simples
+          let commandData;
+          if (command.data.toJSON) {
+            // É um SlashCommandBuilder
+            commandData = command.data.toJSON();
+          } else if (typeof command.data === 'object') {
+            // É um objeto simples, usar como está
+            commandData = command.data;
+          } else {
+            console.log(`⚠️ [WARNING] Formato de dados inválido em ${itemPath}`);
+            continue;
+          }
+          
+          commands.push(commandData);
+          registeredCommandNames.add(commandName);
+          console.log(`✅ Comando carregado: ${itemPath} (${commandName})`);
+        } else {
+          console.log(`⚠️ [WARNING] Comando ${commandName} já registrado, ignorando duplicata em ${itemPath}`);
+        }
+      } else {
+        console.log(`⚠️ [WARNING] O comando em ${itemPath} está sem as propriedades "data" ou "execute".`);
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao carregar comando ${itemPath}:`, error);
+    }
+  }
+
+  // Agora processar diretórios (exceto os que conflitam com comandos já registrados)
+  for (const item of dirs) {
+    // Pular diretórios especiais
+    if (item === 'backup') {
+      console.log(`📁 Ignorando pasta de backup '${item}'`);
+      continue;
+    }
+    
+    // Pular diretórios cujo nome é igual a um comando já registrado
+    if (registeredCommandNames.has(item)) {
+      console.log(`📁 Ignorando subcomandos da pasta '${item}' pois há um comando principal com o mesmo nome.`);
+      continue;
+    }
+    
+    // Carrega comandos recursivamente para outros diretórios
+    loadCommands(path.join(dir, item));
+  }
+}
+
+// Iniciar carregamento de comandos
+loadCommands(commandsPath);
+
+// Verificar se algum comando foi carregado
+if (commands.length === 0) {
+  console.warn('⚠️ [WARNING] Nenhum comando foi carregado!');
 } else {
-  console.error(`❌ [ERROR] Diretório de comandos não encontrado: ${commandsPath}`);
+  console.log(`📋 Total de comandos carregados: ${commands.length}`);
+  console.log(`📋 Lista de comandos: ${commands.map(cmd => cmd.name).join(', ')}`);
 }
 
 console.log(`📋 Total de comandos carregados: ${commands.length}`);
@@ -174,6 +266,122 @@ async function fetchBotsFromApi() {
     }
 }
 
+// Função para verificar se um valor é BigInt e convertê-lo para string
+function serializeBigInt(obj) {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  // Se for um BigInt, converter para string
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+  
+  // Se for um objeto, processar recursivamente
+  if (typeof obj === 'object') {
+    // Se for um array, mapear cada elemento
+    if (Array.isArray(obj)) {
+      return obj.map(item => serializeBigInt(item));
+    }
+    
+    // Se for um objeto, processar cada propriedade
+    const result = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        result[key] = serializeBigInt(obj[key]);
+      }
+    }
+    return result;
+  }
+  
+  // Retornar outros tipos sem alteração
+  return obj;
+}
+
+// Função para converter comandos para formato JSON seguro
+function safeCommandToJSON(command) {
+  if (typeof command.toJSON === 'function') {
+    return serializeBigInt(command.toJSON());
+  } else {
+    return serializeBigInt(command);
+  }
+}
+
+// Função principal para realizar o deploy de comandos para um bot específico
+async function deployCommandsForBot(botConfig) {
+  const { token, clientId, guildId, guildIds, name } = botConfig;
+  
+  if (!token || !clientId) {
+    throw new Error('Token e Client ID são obrigatórios para o deploy de comandos');
+  }
+  
+  if (!guildId && (!guildIds || !guildIds.length)) {
+    throw new Error('Pelo menos um Guild ID é necessário para o deploy de comandos');
+  }
+  
+  const targetGuilds = guildIds?.length ? guildIds : [guildId];
+  
+  // Construir versão segura dos comandos para envio
+  const safeCommands = commands.map(cmd => safeCommandToJSON(cmd));
+  
+  // Construct and prepare an instance of the REST module
+  const rest = new REST().setToken(token);
+  
+  try {
+    console.log(`🤖 Iniciando deploy de comandos para bot: ${name || 'Sem nome'}`);
+    console.log(`📋 Total de comandos: ${safeCommands.length}`);
+    
+    const results = [];
+    
+    for (const guild of targetGuilds) {
+      try {
+        console.log(`\n🔄 Processando guild ID: ${guild}`);
+        
+        // Primeiro, desregistrar todos os comandos existentes
+        await deleteAllCommands(rest, clientId, guild);
+        
+        // Depois, registrar os novos comandos
+        console.log(`\n🚀 Registrando ${safeCommands.length} comandos na guild: ${guild}`);
+        
+        const data = await rest.put(
+          Routes.applicationGuildCommands(clientId, guild),
+          { body: safeCommands }
+        );
+        
+        console.log(`✅ Sucesso! ${data.length} comandos registrados na guild ${guild}`);
+        
+        results.push({
+          guildId: guild,
+          success: true,
+          commandsRegistered: data.length,
+          message: `${data.length} comandos registrados com sucesso`
+        });
+      } catch (error) {
+        console.error(`❌ Erro ao registrar comandos na guild ${guild}:`, error.message);
+        
+        results.push({
+          guildId: guild,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    return {
+      success: results.some(r => r.success),
+      results
+    };
+  } catch (error) {
+    console.error('❌ Erro ao realizar deploy de comandos:', error.message);
+    throw error;
+  }
+}
+
+// Exporta a função para uso externo
+module.exports = {
+  deployCommandsForBot
+};
+
 // Função principal
 (async () => {
     try {
@@ -241,5 +449,3 @@ async function fetchBotsFromApi() {
         process.exit(1);
     }
 })();
-
-module.exports = {};

@@ -1,10 +1,10 @@
-const { SlashCommandBuilder } = require('discord.js');
 const { getVoiceConnection } = require('@discordjs/voice');
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('leave')
-    .setDescription('Sai do canal de voz'),
+  data: {
+    name: 'leave',
+    description: 'Sai do canal de voz'
+  },
   
   async execute(interaction) {
     try {

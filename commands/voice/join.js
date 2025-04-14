@@ -1,10 +1,10 @@
-const { SlashCommandBuilder } = require('discord.js');
 const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('join')
-    .setDescription('Entra no canal de voz em que você está'),
+  data: {
+    name: 'join',
+    description: 'Entra no canal de voz em que você está'
+  },
   
   async execute(interaction) {
     // Verificar se o usuário está em um canal de voz
